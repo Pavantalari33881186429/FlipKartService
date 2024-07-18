@@ -44,6 +44,7 @@ pipeline{
                 script {
                     // Build Docker image
                     docker.build("${DOCKER_IMAGE}:V${env.BUILD_NUMBER}")
+		    docker.build("${DOCKER_IMAGE}:latest")
                 }
             }
         }
