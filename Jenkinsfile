@@ -11,6 +11,7 @@ pipeline{
    environment {
         DOCKER_IMAGE = 'vayuputra123/flipkartservice'
         DOCKER_CREDENTIALS_ID = 'DockerHubCreds'
+	BUILD_NUMBER = "${env.BUILD_NUMBER}"
     }
   
   stages{
@@ -88,7 +89,7 @@ pipeline{
             }
         }
 
-    stage('Docker Login') {
+  stage('Docker Login') {
             steps {
                 script {
                     withCredentials([usernamePassword(credentialsId: "${DOCKER_CREDENTIALS_ID}", usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
@@ -100,11 +101,19 @@ pipeline{
 
     stage('Docker Push') {
             steps {
+               sh 'docker push $DOCKER_IMAGE:V$BUILD_NUMBER'
+	       sh 'docker push $DOCKER_IMAGE:latest'
+            }
+        }
+
+	  stage('Docker Cleanup') {
+            steps {
                 script {
-                    
-                        sh 'docker push ${DOCKER_IMAGE}:V${env.BUILD_NUMBER}'
-                        
-                    
+                    // Remove Docker image from local workspace
+                    sh '''
+                    docker rmi $DOCKER_IMAGE:V$BUILD_NUMBER
+                    docker rmi $DOCKER_IMAGE:latest
+                    '''
                 }
             }
         }
