@@ -1,0 +1,116 @@
+pipeline{
+
+  agent any
+  
+  tools{
+    maven "MAVEN3"
+	  jdk   "OracleJDK11"
+  
+   }
+
+   environment {
+        DOCKER_IMAGE = 'vayuputra123/flipkartservice'
+        DOCKER_CREDENTIALS_ID = 'DockerHubCreds'
+    }
+  
+  stages{
+
+   
+
+    stage('Get code from Git'){
+       steps{
+           
+           git branch: 'main', url: 'https://github.com/Pavantalari33881186429/FlipKartService.git'
+       }
+    }
+    
+    stage('Maven Build Code'){
+      steps{
+         sh 'mvn clean install -DskipTests'
+      }
+      post{
+	      success{
+		     echo 'Archiving artifact'
+		    archiveArtifacts artifacts: '**/*.jar'
+		    }
+	    }
+    }
+
+  
+
+    stage('Docker Build') {
+            steps {
+                script {
+                    // Build Docker image
+                    docker.build("${DOCKER_IMAGE}:V${env.BUILD_NUMBER}")
+                }
+            }
+        }
+    
+    stage(' Code check '){
+      steps{
+        sh 'mvn  checkstyle:checkstyle'
+      }
+    post {
+        success {
+          echo 'Generated Analysis Result'
+                }
+      }
+    }
+
+    stage('CODE ANALYSIS with SONARQUBE') {
+          
+		  environment {
+             scannerHome = tool 'sonarscanner4'
+          }
+
+          steps {
+            withSonarQubeEnv('sonar') {
+               sh '''${scannerHome}/bin/sonar-scanner -Dsonar.projectKey=FlipkartService \
+                   -Dsonar.projectName=FlipkartService \
+                   -Dsonar.projectVersion=1.0 \
+                   -Dsonar.sources=src/main/java \
+                   -Dsonar.java.binaries=target/classes \
+                   -Dsonar.java.checkstyle.reportPaths=target/checkstyle-result.xml'''
+            }
+
+            
+          }
+        }
+
+      stage("Quality Gate") {
+            steps {
+                timeout(time: 1, unit: 'HOURS') {
+                    // Parameter indicates whether to set pipeline to UNSTABLE if Quality Gate fails
+                    // true = set pipeline to UNSTABLE, false = don't
+                    waitForQualityGate abortPipeline: true
+                }
+            }
+        }
+
+    stage('Docker Login') {
+            steps {
+                script {
+                    withCredentials([usernamePassword(credentialsId: "${DOCKER_CREDENTIALS_ID}", usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
+                        sh 'echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin'
+                    }
+                }
+            }
+        }
+
+    stage('Docker Push') {
+            steps {
+                script {
+                    
+                        sh 'docker push ${DOCKER_IMAGE}:V${env.BUILD_NUMBER}'
+                        
+                    
+                }
+            }
+        }
+         
+    }
+    }
+  
+
+
